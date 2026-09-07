@@ -2,11 +2,14 @@
 
 ## Unreleased
 
-### Fixed
+### Added
 
-- Keep extension commands available while the new-version changelog notification is awaiting user interaction ([#60](https://github.com/micheletriaca/fast-sfdc/issues/60)).
 - Show Apex class and trigger test coverage with source-version checks.
 
+### Fixed
+
+- Keep extension commands available while the new-version changelog notification
+  is awaiting user interaction ([#60](https://github.com/micheletriaca/fast-sfdc/issues/60)).
 
 ## 2.0.2
 

@@ -97,9 +97,14 @@ export default {
     reporter.sendEvent('runTest')
     runTest(document, className, methodName)
   },
-  toggleTestCoverage: (document: vscode.TextDocument) => {
+  toggleTestCoverage: async (document: vscode.TextDocument) => {
     reporter.sendEvent('toggleTestCoverage')
-    toggleTestCoverage(document)
+    try {
+      await toggleTestCoverage(document)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await vscode.window.showErrorMessage(`Unable to show Apex test coverage: ${message}`)
+    }
   },
   statusBarClick: () => {
     vscode.commands.executeCommand('FastSfdc.manageCredentials')

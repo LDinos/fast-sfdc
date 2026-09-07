@@ -63,7 +63,7 @@ suite('Extension Tests', function () {
     assert.strictEqual(sourcesMatch('line 1\nchanged', 'line 1\nline 2'), false)
   })
 
-  test('Clears coverage state when an editor is reopened', function () {
+  test('Removes stored coverage lines when document state is cleared', function () {
     const state = new TestCoverageState()
     state.enable('file:///Example.cls', { coveredLines: [1], uncoveredLines: [2] })
     assert.strictEqual(state.has('file:///Example.cls'), true)

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode'
+import StatusBar from '../statusbar'
 import sfdcConnector from '../sfdc-connector'
+import configService from '../services/config-service'
 import parsers from '../utils/parsers'
 import { getCoverageLines, ApexCoverageRecord, sourcesMatch } from '../utils/test-coverage'
 import TestCoverageState, { TestCoverageLines } from '../utils/test-coverage-state'
@@ -47,14 +49,7 @@ const clearCoverage = (document: vscode.TextDocument) => {
   enabledDocuments.clear(document.uri.toString())
 }
 
-export const toggleTestCoverage = async (document: vscode.TextDocument): Promise<void> => {
-  if (!parsers.isApexCoverageSupported(document.fileName)) return
-  const documentId = document.uri.toString()
-  if (enabledDocuments.has(documentId)) {
-    clearCoverage(document)
-    return
-  }
-
+const showTestCoverage = async (document: vscode.TextDocument, documentId: string): Promise<void> => {
   const apexName = parsers.getFilename(document.fileName)
   const apexType = parsers.getApexCoverageType(document.fileName)
   const records = apexType === 'ApexTrigger'
@@ -65,7 +60,7 @@ export const toggleTestCoverage = async (document: vscode.TextDocument): Promise
 
   if (!sourcesMatch(document.getText(), apexClass.Body)) {
     const answer = await vscode.window.showWarningMessage(
-      'Local file differs from remote. Show covered lines anyway?',
+      'Local source differs from the connected org. Coverage highlighting may be inaccurate. Show coverage anyway?',
       'Yes', 'No'
     )
     if (answer !== 'Yes') return
@@ -73,7 +68,7 @@ export const toggleTestCoverage = async (document: vscode.TextDocument): Promise
 
   const coverageRecords = await sfdcConnector.queryAll(`SELECT Coverage FROM ApexCodeCoverage WHERE ApexClassOrTriggerId = '${apexClass.Id}'`) as ApexCoverageRecord[]
   if (coverageRecords.length === 0) {
-    await vscode.window.showInformationMessage('No test classes have run to cover this Apex class.')
+    await vscode.window.showInformationMessage(`No test coverage is available for ${apexType === 'ApexTrigger' ? 'Apex trigger' : 'Apex class'} '${apexName}'. Run Apex tests in the connected org and try again.`)
     return
   }
   const { coveredLines, uncoveredLines } = getCoverageLines(coverageRecords)
@@ -82,6 +77,42 @@ export const toggleTestCoverage = async (document: vscode.TextDocument): Promise
     applyCoverage(editor, coverageLines)
   })
   enabledDocuments.enable(documentId, coverageLines)
+}
+
+const showTestCoverageWithStatus = (document: vscode.TextDocument, documentId: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    StatusBar.startLongJob(done => {
+      showTestCoverage(document, documentId).then(() => {
+        done('👍🏻')
+        resolve()
+      }, error => {
+        done('👎🏻')
+        reject(error)
+      })
+    })
+  })
+
+export const toggleTestCoverage = async (document: vscode.TextDocument): Promise<void> => {
+  if (!parsers.isApexCoverageSupported(document.fileName)) return
+  const documentId = document.uri.toString()
+  if (enabledDocuments.has(documentId)) {
+    clearCoverage(document)
+    return
+  }
+
+  const config = await configService.getConfig()
+  if (!config.credentials[config.currentCredential]) {
+    const answer = await vscode.window.showWarningMessage(
+      'Configure Salesforce credentials before viewing Apex test coverage.',
+      'Manage credentials'
+    )
+    if (answer === 'Manage credentials') {
+      await vscode.commands.executeCommand('FastSfdc.manageCredentials')
+    }
+    return
+  }
+
+  await showTestCoverageWithStatus(document, documentId)
 }
 
 export const restoreTestCoverage = (editor: vscode.TextEditor) => {
